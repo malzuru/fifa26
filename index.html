@@ -338,6 +338,26 @@
   .badge-qf { background: rgba(251,146,60,0.2); color: #fca36a; }
   .badge-sf { background: rgba(212,43,58,0.2); color: #f87171; }
   .badge-final { background: rgba(232,196,74,0.3); color: var(--gold); }
+  .badge-3rd   { background: rgba(148,163,184,0.2); color: #cbd5e1; }
+
+  /* Knockout round header */
+  .ko-round-header {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 6px 0 10px;
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ko-round-header::after { content:''; flex:1; height:1px; background:var(--border); }
+  .ko-round-header:first-child { margin-top: 0; }
+
+  /* TBD team placeholder in match card */
+  .match-team-tbd { font-size: 24px; line-height: 1; opacity: 0.4; }
 
   .match-body {
     display: flex;
@@ -644,8 +664,9 @@
 
 <div class="view-tabs" id="viewTabs">
   <div class="view-tabs-inner">
-    <button class="view-tab active" id="tabTeams" onclick="switchMode('teams')">By Team</button>
-    <button class="view-tab"        id="tabVenues" onclick="switchMode('venues')">By Venue / City</button>
+    <button class="view-tab active" id="tabTeams"    onclick="switchMode('teams')">By Team</button>
+    <button class="view-tab"        id="tabVenues"  onclick="switchMode('venues')">By Venue / City</button>
+    <button class="view-tab"        id="tabKnockout" onclick="switchMode('knockout')">Knockout</button>
   </div>
 </div>
 
@@ -656,6 +677,10 @@
 
 <div class="all-venues" id="allVenuesView" style="display:none;">
   <div id="countriesGrid"></div>
+</div>
+
+<div class="all-venues" id="allKnockoutView" style="display:none;">
+  <div id="knockoutGrid"></div>
 </div>
 
 <div class="venue-view" id="venueView"></div>
@@ -813,6 +838,53 @@ const MATCHES = [
   { id: 67, home:"CRO", away:"GHA", group:"L", matchday:3, date:"Sat Jun 27", time:"17:00", venue:"Philadelphia",          broadcast:"FS1"            },
 ];
 
+// ── Knockout stage matches ────────────────────────────────────────────────────
+// All times ET. Teams TBD — matchups determined by group finishes.
+const KNOCKOUT_MATCHES = [
+  // Round of 32
+  { id: 73,  stage:"r32",   date:"Sun Jun 28",           time:"15:00", venue:"Los Angeles",           stadium:"SoFi Stadium",                 homeLabel:"R/U Group A", awayLabel:"R/U Group B" },
+  { id: 74,  stage:"r32",   date:"Mon Jun 29",           time:"13:00", venue:"Boston",                stadium:"Gillette Stadium",              homeLabel:"W Group E",   awayLabel:"Best 3rd"    },
+  { id: 75,  stage:"r32",   date:"Mon Jun 29",           time:"16:30", venue:"Houston",               stadium:"NRG Stadium",                   homeLabel:"W Group F",   awayLabel:"R/U Group C" },
+  { id: 76,  stage:"r32",   date:"Mon Jun 29",           time:"21:00", venue:"Monterrey",             stadium:"Estadio BBVA",                  homeLabel:"W Group C",   awayLabel:"R/U Group F" },
+  { id: 77,  stage:"r32",   date:"Tue Jun 30",           time:"15:00", venue:"New York / New Jersey", stadium:"MetLife Stadium",               homeLabel:"W Group A",   awayLabel:"Best 3rd"    },
+  { id: 78,  stage:"r32",   date:"Tue Jun 30",           time:"21:00", venue:"Dallas",                stadium:"AT&T Stadium",                  homeLabel:"W Group L",   awayLabel:"Best 3rd"    },
+  { id: 79,  stage:"r32",   date:"Wed Jul 1",            time:"12:00", venue:"Atlanta",               stadium:"Mercedes-Benz Stadium",         homeLabel:"W Group I",   awayLabel:"Best 3rd"    },
+  { id: 80,  stage:"r32",   date:"Wed Jul 1",            time:"20:00", venue:"San Francisco Bay Area",stadium:"Levi's Stadium",                homeLabel:"R/U Group E", awayLabel:"R/U Group I" },
+  { id: 81,  stage:"r32",   date:"Thu Jul 2",            time:"15:00", venue:"Toronto",               stadium:"BMO Field",                     homeLabel:"W Group B",   awayLabel:"Best 3rd"    },
+  { id: 82,  stage:"r32",   date:"Thu Jul 2",            time:"21:00", venue:"Vancouver",             stadium:"BC Place",                      homeLabel:"R/U Group D", awayLabel:"R/U Group G" },
+  { id: 83,  stage:"r32",   date:"Fri Jul 3",            time:"15:00", venue:"Seattle",               stadium:"Lumen Field",                   homeLabel:"W Group D",   awayLabel:"Best 3rd"    },
+  { id: 84,  stage:"r32",   date:"Fri Jul 3",            time:"15:00", venue:"Dallas",                stadium:"AT&T Stadium",                  homeLabel:"W Group G",   awayLabel:"Best 3rd"    },
+  { id: 85,  stage:"r32",   date:"Fri Jul 3",            time:"18:00", venue:"Miami",                 stadium:"Hard Rock Stadium",             homeLabel:"R/U Group K", awayLabel:"R/U Group L" },
+  { id: 86,  stage:"r32",   date:"Fri Jul 3",            time:"21:00", venue:"Kansas City",           stadium:"GEHA Field at Arrowhead",       homeLabel:"W Group H",   awayLabel:"R/U Group J" },
+  { id: 87,  stage:"r32",   date:"Fri Jul 3 / Sat Jul 4",time:"TBC",  venue:"TBD",                   stadium:"",                              homeLabel:"W Group J",   awayLabel:"R/U Group H", venueTbc:true },
+  { id: 88,  stage:"r32",   date:"Fri Jul 3 / Sat Jul 4",time:"TBC",  venue:"TBD",                   stadium:"",                              homeLabel:"W Group K",   awayLabel:"Best 3rd",    venueTbc:true },
+  // Round of 16
+  { id: 89,  stage:"r16",   date:"Sat Jul 4",            time:"13:00", venue:"Houston",               stadium:"NRG Stadium",                   homeLabel:"TBD",         awayLabel:"TBD"         },
+  { id: 90,  stage:"r16",   date:"Sat Jul 4",            time:"17:00", venue:"New York / New Jersey", stadium:"MetLife Stadium",               homeLabel:"TBD",         awayLabel:"TBD"         },
+  { id: 91,  stage:"r16",   date:"Sun Jul 5",            time:"15:00", venue:"San Francisco Bay Area",stadium:"Levi's Stadium",                homeLabel:"TBD",         awayLabel:"TBD"         },
+  { id: 92,  stage:"r16",   date:"Sun Jul 5",            time:"20:00", venue:"Mexico City",           stadium:"Estadio Azteca",                homeLabel:"TBD",         awayLabel:"TBD"         },
+  { id: 93,  stage:"r16",   date:"Mon Jul 6",            time:"15:00", venue:"Dallas",                stadium:"AT&T Stadium",                  homeLabel:"TBD",         awayLabel:"TBD"         },
+  { id: 94,  stage:"r16",   date:"Mon Jul 6",            time:"20:00", venue:"Seattle",               stadium:"Lumen Field",                   homeLabel:"TBD",         awayLabel:"TBD"         },
+  { id: 95,  stage:"r16",   date:"Tue Jul 7",            time:"15:00", venue:"Atlanta",               stadium:"Mercedes-Benz Stadium",         homeLabel:"TBD",         awayLabel:"TBD"         },
+  { id: 96,  stage:"r16",   date:"Tue Jul 7",            time:"20:00", venue:"Philadelphia",          stadium:"Lincoln Financial Field",        homeLabel:"TBD",         awayLabel:"TBD"         },
+  // Quarter-finals
+  { id: 97,  stage:"qf",    date:"Thu Jul 9",            time:"16:00", venue:"Boston",                stadium:"Gillette Stadium",              homeLabel:"TBD",         awayLabel:"TBD"         },
+  { id: 98,  stage:"qf",    date:"Fri Jul 10",           time:"15:00", venue:"Los Angeles",           stadium:"SoFi Stadium",                 homeLabel:"TBD",         awayLabel:"TBD"         },
+  { id: 99,  stage:"qf",    date:"Sat Jul 11",           time:"17:00", venue:"Miami",                 stadium:"Hard Rock Stadium",            homeLabel:"TBD",         awayLabel:"TBD"         },
+  { id: 100, stage:"qf",    date:"Sat Jul 11",           time:"21:00", venue:"Kansas City",           stadium:"GEHA Field at Arrowhead",      homeLabel:"TBD",         awayLabel:"TBD"         },
+  // Semi-finals
+  { id: 101, stage:"sf",    date:"Tue Jul 14",           time:"TBC",   venue:"Dallas",                stadium:"AT&T Stadium",                  homeLabel:"TBD",         awayLabel:"TBD"         },
+  { id: 102, stage:"sf",    date:"Wed Jul 15",           time:"TBC",   venue:"Atlanta",               stadium:"Mercedes-Benz Stadium",         homeLabel:"TBD",         awayLabel:"TBD"         },
+  // Third-place play-off
+  { id: 103, stage:"3rd",   date:"Sat Jul 18",           time:"TBC",   venue:"Miami",                 stadium:"Hard Rock Stadium",             homeLabel:"TBD",         awayLabel:"TBD"         },
+  // Final
+  { id: 104, stage:"final", date:"Sun Jul 19",           time:"15:00", venue:"New York / New Jersey", stadium:"MetLife Stadium",               homeLabel:"TBD",         awayLabel:"TBD"         },
+];
+
+const KO_STAGE_LABELS = {
+  r32:"Round of 32", r16:"Round of 16", qf:"Quarter-final", sf:"Semi-final", "3rd":"Third Place Play-off", final:"Final"
+};
+
 const GROUP_COLORS = {
   A:"#2d6a4f", B:"#1d3a8a", C:"#7b2d2d", D:"#4a2d7b",
   E:"#7b5e1a", F:"#1a6b6b", G:"#5c3d2e", H:"#2e5c3d",
@@ -892,37 +964,49 @@ function switchMode(mode) {
   currentMode = mode;
   document.getElementById('tabTeams').classList.toggle('active', mode === 'teams');
   document.getElementById('tabVenues').classList.toggle('active', mode === 'venues');
+  document.getElementById('tabKnockout').classList.toggle('active', mode === 'knockout');
+
+  const allViews = ['allTeamsView','allVenuesView','allKnockoutView','teamView','venueView'];
+  allViews.forEach(id => document.getElementById(id).style.display = 'none');
 
   if (mode === 'teams') {
-    document.getElementById('allVenuesView').style.display = 'none';
-    document.getElementById('venueView').style.display = 'none';
     if (selectedTeam) {
       document.getElementById('teamView').style.display = 'block';
-      document.getElementById('allTeamsView').style.display = 'none';
     } else {
       document.getElementById('allTeamsView').style.display = 'block';
-      document.getElementById('teamView').style.display = 'none';
     }
-  } else {
-    document.getElementById('allTeamsView').style.display = 'none';
-    document.getElementById('teamView').style.display = 'none';
+  } else if (mode === 'venues') {
     if (selectedVenue) {
       document.getElementById('venueView').style.display = 'block';
-      document.getElementById('allVenuesView').style.display = 'none';
     } else {
       document.getElementById('allVenuesView').style.display = 'block';
-      document.getElementById('venueView').style.display = 'none';
     }
+  } else {
+    document.getElementById('allKnockoutView').style.display = 'block';
   }
 }
 
 // ── VENUE BROWSER ─────────────────────────────────────────────────────────────
+function allMatchesAtVenue(venue) {
+  return [
+    ...MATCHES.filter(m => m.venue === venue),
+    ...KNOCKOUT_MATCHES.filter(m => m.venue === venue),
+  ].sort((a, b) => a.id - b.id);
+}
+
+function allMatchesInCities(cities) {
+  return [
+    ...MATCHES.filter(m => cities.includes(m.venue)),
+    ...KNOCKOUT_MATCHES.filter(m => cities.includes(m.venue)),
+  ].sort((a, b) => a.id - b.id);
+}
+
 function renderVenueBrowser() {
   const grid = document.getElementById('countriesGrid');
   grid.innerHTML = Object.entries(VENUE_COUNTRIES).map(([country, data]) => {
-    const countryCount = MATCHES.filter(m => data.cities.includes(m.venue)).length;
+    const countryCount = allMatchesInCities(data.cities).length;
     const citiesHTML = data.cities.map(city => {
-      const count = MATCHES.filter(m => m.venue === city).length;
+      const count = allMatchesAtVenue(city).length;
       return `
         <div class="venue-pill" onclick="selectVenue('${city}')">
           <span>${city}</span>
@@ -964,7 +1048,7 @@ function clearVenueSelection() {
 }
 
 function renderVenueView(venue) {
-  const venueMatches = MATCHES.filter(m => m.venue === venue).sort((a,b) => a.id - b.id);
+  const all = allMatchesAtVenue(venue);
   let countryFlag = '📍';
   for (const [, data] of Object.entries(VENUE_COUNTRIES)) {
     if (data.cities.includes(venue)) { countryFlag = data.flag; break; }
@@ -977,37 +1061,101 @@ function renderVenueView(venue) {
       <div class="venue-hero-flag">${countryFlag}</div>
       <div class="venue-hero-info">
         <div class="venue-hero-name">${venue}</div>
-        <div class="venue-hero-sub">${venueMatches.length} matches &nbsp;·&nbsp; ${tzLabel} local time</div>
+        <div class="venue-hero-sub">${all.length} matches &nbsp;·&nbsp; ${tzLabel} local time</div>
       </div>
       <button class="back-btn" onclick="clearVenueSelection()">← Back</button>
     </div>
     <div class="section-label">All Matches at This Venue</div>
-    ${venueMatches.map(m => renderMatchCard(m, null)).join('')}
+    ${all.map(m => m.stage ? renderKnockoutCard(m) : renderMatchCard(m, null)).join('')}
   `;
 }
 
 function renderCountryView(country) {
   const data = VENUE_COUNTRIES[country];
-  const countryMatches = MATCHES.filter(m => data.cities.includes(m.venue)).sort((a,b) => a.id - b.id);
+  const all = allMatchesInCities(data.cities);
 
   document.getElementById('venueView').innerHTML = `
     <div class="venue-hero">
       <div class="venue-hero-flag">${data.flag}</div>
       <div class="venue-hero-info">
         <div class="venue-hero-name">${country}</div>
-        <div class="venue-hero-sub">${countryMatches.length} matches across ${data.cities.length} venues</div>
+        <div class="venue-hero-sub">${all.length} matches across ${data.cities.length} venues</div>
       </div>
       <button class="back-btn" onclick="clearVenueSelection()">← Back</button>
     </div>
     <div class="section-label">All Matches in ${country}</div>
-    ${countryMatches.map(m => renderMatchCard(m, null)).join('')}
+    ${all.map(m => m.stage ? renderKnockoutCard(m) : renderMatchCard(m, null)).join('')}
   `;
+}
+
+// ── Knockout card renderer ────────────────────────────────────────────────────
+function renderKnockoutCard(m) {
+  const stageLabel = KO_STAGE_LABELS[m.stage] || m.stage;
+  const badgeClass = `badge-${m.stage}`;
+  let displayTime, displayTZ;
+  if (m.time === 'TBC') {
+    displayTime = 'TBC'; displayTZ = '';
+  } else {
+    const dt = getDisplayTime(m);
+    displayTime = dt.time; displayTZ = dt.tz;
+  }
+  const venueStr = m.venueTbc
+    ? '📍 Venue TBC'
+    : `📍 ${m.venue}${m.stadium ? ' · ' + m.stadium : ''}`;
+
+  return `
+    <div class="match-card">
+      <div class="match-meta-bar" style="background:rgba(255,255,255,0.04);">
+        <span class="match-num">Match #${m.id}</span>
+        <span class="match-stage-badge ${badgeClass}">${stageLabel}</span>
+      </div>
+      <div class="match-body">
+        <div class="match-team" style="text-align:center;">
+          <span class="match-team-tbd">🏳️</span>
+          <span class="match-team-name" style="color:var(--text-muted);">${m.homeLabel}</span>
+        </div>
+        <div class="match-vs">
+          <span class="vs-text">vs</span>
+          <span class="vs-time">${displayTime}</span>
+          <span class="vs-tz">${displayTZ}</span>
+        </div>
+        <div class="match-team" style="text-align:center;">
+          <span class="match-team-tbd">🏳️</span>
+          <span class="match-team-name" style="color:var(--text-muted);">${m.awayLabel}</span>
+        </div>
+      </div>
+      <div class="match-footer">
+        <span>📅 ${m.date} &nbsp;·&nbsp; ${venueStr}</span>
+      </div>
+    </div>
+  `;
+}
+
+// ── Knockout browser ──────────────────────────────────────────────────────────
+function renderKnockoutBrowser() {
+  const rounds = [
+    { key:"r32",   label:"Round of 32",           dates:"Jun 28 – Jul 4"  },
+    { key:"r16",   label:"Round of 16",            dates:"Jul 4 – 7"       },
+    { key:"qf",    label:"Quarter-finals",          dates:"Jul 9 – 11"      },
+    { key:"sf",    label:"Semi-finals",             dates:"Jul 14 – 15"     },
+    { key:"3rd",   label:"Third Place Play-off",    dates:"Jul 18"          },
+    { key:"final", label:"The Final",               dates:"Jul 19"          },
+  ];
+  const grid = document.getElementById('knockoutGrid');
+  grid.innerHTML = rounds.map(r => {
+    const matches = KNOCKOUT_MATCHES.filter(m => m.stage === r.key);
+    return `
+      <div class="ko-round-header">${r.label} <span style="font-size:10px;font-weight:500;color:var(--text-muted);margin-left:4px;">${r.dates}</span></div>
+      ${matches.map(m => renderKnockoutCard(m)).join('')}
+    `;
+  }).join('');
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function init() {
   renderGroupsGrid();
   renderVenueBrowser();
+  renderKnockoutBrowser();
 
   const inp = document.getElementById('searchInput');
   inp.addEventListener('input', onSearchInput);
@@ -1153,25 +1301,22 @@ function renderTeamView(code) {
   const gmEl = document.getElementById('groupMatches');
   gmEl.innerHTML = teamMatches.map(m => renderMatchCard(m, code)).join('');
 
-  // Knockout note
-  document.getElementById('knockoutInfo').innerHTML = `
-    <div class="knockout-note">
-      <strong>Round of 32 · Jun 28 – Jul 3</strong>
-      Matchups are determined by group finishes. 16 matches across all host cities.
-    </div>
-    <div class="knockout-note" style="margin-top:8px;">
-      <strong>Round of 16 · Jul 4–7 &nbsp;|&nbsp; Quarterfinals · Jul 9–11</strong>
-      Fixtures are confirmed once earlier rounds conclude.
-    </div>
-    <div class="knockout-note" style="margin-top:8px;">
-      <strong>Semifinals · Jul 14–15 &nbsp;|&nbsp; Bronze Final · Jul 18</strong>
-      <span style="color:var(--text-muted);">Semifinals at Dallas (Jul 14, 15:00 ET) and Atlanta (Jul 15, 15:00 ET)</span>
-    </div>
-    <div class="knockout-note" style="margin-top:8px; border-color: var(--gold); background: rgba(232,196,74,0.06);">
-      <strong style="color:var(--gold);">🏆 The Final · Sun Jul 19 · 15:00 ET</strong>
-      New York / New Jersey Stadium (MetLife) · East Rutherford, NJ
-    </div>
-  `;
+  // Knockout section — show all rounds
+  const koRounds = [
+    { key:"r32", label:"Round of 32", dates:"Jun 28 – Jul 4" },
+    { key:"r16", label:"Round of 16", dates:"Jul 4 – 7" },
+    { key:"qf",  label:"Quarter-finals", dates:"Jul 9 – 11" },
+    { key:"sf",  label:"Semi-finals", dates:"Jul 14 – 15" },
+    { key:"3rd", label:"Third Place Play-off", dates:"Jul 18" },
+    { key:"final", label:"The Final", dates:"Jul 19" },
+  ];
+  document.getElementById('knockoutInfo').innerHTML = koRounds.map(r => {
+    const matches = KNOCKOUT_MATCHES.filter(m => m.stage === r.key);
+    return `
+      <div class="ko-round-header">${r.label} <span style="font-size:10px;font-weight:500;color:var(--text-muted);margin-left:4px;">${r.dates}</span></div>
+      ${matches.map(m => renderKnockoutCard(m)).join('')}
+    `;
+  }).join('');
 }
 
 function renderMatchCard(m, highlightCode) {
