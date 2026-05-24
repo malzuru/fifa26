@@ -664,23 +664,20 @@
 
 <div class="view-tabs" id="viewTabs">
   <div class="view-tabs-inner">
-    <button class="view-tab active" id="tabTeams"    onclick="switchMode('teams')">By Team</button>
-    <button class="view-tab"        id="tabVenues"  onclick="switchMode('venues')">By Venue / City</button>
-    <button class="view-tab"        id="tabKnockout" onclick="switchMode('knockout')">Knockout</button>
+    <button class="view-tab active" id="tabTeams"  onclick="switchMode('teams')">By Team</button>
+    <button class="view-tab"        id="tabVenues" onclick="switchMode('venues')">By Venue / City</button>
   </div>
 </div>
 
 <div class="all-teams" id="allTeamsView">
   <div class="splash-hint">Click any team or type above to view their full schedule</div>
   <div class="groups-grid" id="groupsGrid"></div>
+  <div class="section-label" style="margin-top:32px;">Knockout Stage</div>
+  <div id="knockoutGrid"></div>
 </div>
 
 <div class="all-venues" id="allVenuesView" style="display:none;">
   <div id="countriesGrid"></div>
-</div>
-
-<div class="all-venues" id="allKnockoutView" style="display:none;">
-  <div id="knockoutGrid"></div>
 </div>
 
 <div class="venue-view" id="venueView"></div>
@@ -964,9 +961,8 @@ function switchMode(mode) {
   currentMode = mode;
   document.getElementById('tabTeams').classList.toggle('active', mode === 'teams');
   document.getElementById('tabVenues').classList.toggle('active', mode === 'venues');
-  document.getElementById('tabKnockout').classList.toggle('active', mode === 'knockout');
 
-  const allViews = ['allTeamsView','allVenuesView','allKnockoutView','teamView','venueView'];
+  const allViews = ['allTeamsView','allVenuesView','teamView','venueView'];
   allViews.forEach(id => document.getElementById(id).style.display = 'none');
 
   if (mode === 'teams') {
@@ -975,14 +971,12 @@ function switchMode(mode) {
     } else {
       document.getElementById('allTeamsView').style.display = 'block';
     }
-  } else if (mode === 'venues') {
+  } else {
     if (selectedVenue) {
       document.getElementById('venueView').style.display = 'block';
     } else {
       document.getElementById('allVenuesView').style.display = 'block';
     }
-  } else {
-    document.getElementById('allKnockoutView').style.display = 'block';
   }
 }
 
