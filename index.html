@@ -359,6 +359,40 @@
   /* TBD team placeholder in match card */
   .match-team-tbd { font-size: 24px; line-height: 1; opacity: 0.4; }
 
+  /* Full-schedule date headers */
+  .schedule-date-header {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 20px 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .schedule-date-header::after { content:''; flex:1; height:1px; background:var(--border); }
+  .schedule-date-header:first-child { padding-top: 4px; }
+
+  /* Phase divider between group stage and knockout */
+  .schedule-phase-sep {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 28px 0 4px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  .schedule-phase-sep::before, .schedule-phase-sep::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(232,196,74,0.3);
+  }
+
   .match-body {
     display: flex;
     align-items: center;
@@ -664,16 +698,19 @@
 
 <div class="view-tabs" id="viewTabs">
   <div class="view-tabs-inner">
-    <button class="view-tab active" id="tabTeams"  onclick="switchMode('teams')">By Team</button>
+    <button class="view-tab active" id="tabAll"    onclick="switchMode('all')">All Matches</button>
+    <button class="view-tab"        id="tabTeams"  onclick="switchMode('teams')">By Team</button>
     <button class="view-tab"        id="tabVenues" onclick="switchMode('venues')">By Venue / City</button>
   </div>
 </div>
 
-<div class="all-teams" id="allTeamsView">
-  <div class="splash-hint">Click any team or type above to view their full schedule</div>
+<div class="all-teams" id="allScheduleView">
+  <div id="scheduleGroups"></div>
+</div>
+
+<div class="all-teams" id="allTeamsView" style="display:none;">
+  <div class="splash-hint">Select a team below or search above</div>
   <div class="groups-grid" id="groupsGrid"></div>
-  <div class="section-label" style="margin-top:32px;">Knockout Stage</div>
-  <div id="knockoutGrid"></div>
 </div>
 
 <div class="all-venues" id="allVenuesView" style="display:none;">
@@ -944,7 +981,7 @@ function getDisplayTime(match) {
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let selectedTeam = null;
 let selectedVenue = null;
-let currentMode = 'teams';
+let currentMode = 'all';
 let showLocalTime = false;
 
 // ── TIMEZONE TOGGLE ───────────────────────────────────────────────────────────
@@ -953,19 +990,26 @@ function setTZ(mode) {
   document.getElementById('btnET').classList.toggle('active', !showLocalTime);
   document.getElementById('btnLocal').classList.toggle('active', showLocalTime);
   if (selectedTeam) renderTeamView(selectedTeam);
+  else if (currentMode === 'all') renderFullSchedule();
   if (selectedVenue) renderVenueView(selectedVenue);
 }
 
 // ── MODE SWITCH ───────────────────────────────────────────────────────────────
 function switchMode(mode) {
   currentMode = mode;
+  document.getElementById('tabAll').classList.toggle('active', mode === 'all');
   document.getElementById('tabTeams').classList.toggle('active', mode === 'teams');
   document.getElementById('tabVenues').classList.toggle('active', mode === 'venues');
 
-  const allViews = ['allTeamsView','allVenuesView','teamView','venueView'];
+  const allViews = ['allScheduleView','allTeamsView','allVenuesView','teamView','venueView'];
   allViews.forEach(id => document.getElementById(id).style.display = 'none');
 
-  if (mode === 'teams') {
+  if (mode === 'all') {
+    selectedTeam = null;
+    document.getElementById('searchInput').value = '';
+    document.getElementById('clearBtn').classList.remove('visible');
+    document.getElementById('allScheduleView').style.display = 'block';
+  } else if (mode === 'teams') {
     if (selectedTeam) {
       document.getElementById('teamView').style.display = 'block';
     } else {
@@ -1125,31 +1169,50 @@ function renderKnockoutCard(m) {
   `;
 }
 
-// ── Knockout browser ──────────────────────────────────────────────────────────
-function renderKnockoutBrowser() {
-  const rounds = [
-    { key:"r32",   label:"Round of 32",           dates:"Jun 28 – Jul 4"  },
-    { key:"r16",   label:"Round of 16",            dates:"Jul 4 – 7"       },
-    { key:"qf",    label:"Quarter-finals",          dates:"Jul 9 – 11"      },
-    { key:"sf",    label:"Semi-finals",             dates:"Jul 14 – 15"     },
-    { key:"3rd",   label:"Third Place Play-off",    dates:"Jul 18"          },
-    { key:"final", label:"The Final",               dates:"Jul 19"          },
+// ── Full chronological schedule ───────────────────────────────────────────────
+function renderFullSchedule() {
+  const el = document.getElementById('scheduleGroups');
+
+  // Group stage: group by date string (insertion order = chronological)
+  const dateMap = new Map();
+  MATCHES.forEach(m => {
+    if (!dateMap.has(m.date)) dateMap.set(m.date, []);
+    dateMap.get(m.date).push(m);
+  });
+
+  let html = [...dateMap.entries()].map(([date, matches]) => `
+    <div class="schedule-date-header">${date}</div>
+    ${matches.map(m => renderMatchCard(m, null)).join('')}
+  `).join('');
+
+  // Phase separator
+  html += `<div class="schedule-phase-sep">Knockout Stage</div>`;
+
+  // Knockout rounds
+  const koRounds = [
+    { key:"r32",   label:"Round of 32",        dates:"Jun 28 – Jul 4" },
+    { key:"r16",   label:"Round of 16",         dates:"Jul 4 – 7"      },
+    { key:"qf",    label:"Quarter-finals",       dates:"Jul 9 – 11"     },
+    { key:"sf",    label:"Semi-finals",          dates:"Jul 14 – 15"    },
+    { key:"3rd",   label:"Third Place Play-off", dates:"Jul 18"         },
+    { key:"final", label:"The Final",            dates:"Jul 19"         },
   ];
-  const grid = document.getElementById('knockoutGrid');
-  grid.innerHTML = rounds.map(r => {
+  html += koRounds.map(r => {
     const matches = KNOCKOUT_MATCHES.filter(m => m.stage === r.key);
     return `
-      <div class="ko-round-header">${r.label} <span style="font-size:10px;font-weight:500;color:var(--text-muted);margin-left:4px;">${r.dates}</span></div>
+      <div class="ko-round-header">${r.label}<span style="font-size:10px;font-weight:500;color:var(--text-muted);margin-left:6px;">${r.dates}</span></div>
       ${matches.map(m => renderKnockoutCard(m)).join('')}
     `;
   }).join('');
+
+  el.innerHTML = html;
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function init() {
+  renderFullSchedule();
   renderGroupsGrid();
   renderVenueBrowser();
-  renderKnockoutBrowser();
 
   const inp = document.getElementById('searchInput');
   inp.addEventListener('input', onSearchInput);
@@ -1233,15 +1296,12 @@ function selectTeam(code) {
   hideAutocomplete();
   selectedTeam = code;
   selectedVenue = null;
-  currentMode = 'teams';
-  document.getElementById('tabTeams').classList.add('active');
-  document.getElementById('tabVenues').classList.remove('active');
   const team = TEAMS[code];
   document.getElementById('searchInput').value = team.name;
   document.getElementById('clearBtn').classList.add('visible');
-  document.getElementById('allTeamsView').style.display = 'none';
-  document.getElementById('allVenuesView').style.display = 'none';
-  document.getElementById('venueView').style.display = 'none';
+  ['allScheduleView','allTeamsView','allVenuesView','venueView'].forEach(
+    id => document.getElementById(id).style.display = 'none'
+  );
   document.getElementById('teamView').style.display = 'block';
   renderTeamView(code);
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1251,8 +1311,15 @@ function clearSelection() {
   selectedTeam = null;
   document.getElementById('searchInput').value = '';
   document.getElementById('clearBtn').classList.remove('visible');
-  document.getElementById('allTeamsView').style.display = 'block';
   document.getElementById('teamView').style.display = 'none';
+  if (currentMode === 'teams') {
+    document.getElementById('allTeamsView').style.display = 'block';
+  } else {
+    currentMode = 'all';
+    document.getElementById('tabAll').classList.add('active');
+    document.getElementById('tabTeams').classList.remove('active');
+    document.getElementById('allScheduleView').style.display = 'block';
+  }
 }
 
 // ── Render team view ──────────────────────────────────────────────────────────
