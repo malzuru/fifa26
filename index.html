@@ -484,6 +484,139 @@
     color: var(--text-muted);
     font-size: 13px;
   }
+
+  /* ── View mode tabs ── */
+  .view-tabs {
+    max-width: 680px;
+    margin: 16px auto 0;
+    padding: 0 16px;
+    display: flex;
+  }
+  .view-tabs-inner {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+    width: 100%;
+  }
+  .view-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    border-radius: 7px;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .view-tab.active { background: var(--primary); color: #fff; }
+  .view-tab:hover:not(.active) { color: var(--text); }
+
+  /* ── Venue browser ── */
+  .all-venues {
+    max-width: 680px;
+    margin: 16px auto 0;
+    padding: 0 16px 32px;
+  }
+  .country-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+  .country-header {
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.04);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .country-header:hover { background: rgba(255,255,255,0.08); }
+  .country-header .match-count {
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(255,255,255,0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+  .country-venues {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 14px;
+  }
+  .venue-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.12s;
+  }
+  .venue-pill:hover { border-color: var(--primary); color: var(--text); }
+  .venue-pill .vc-count {
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(255,255,255,0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-muted);
+  }
+
+  /* ── Venue match view ── */
+  .venue-view {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 16px 48px;
+    display: none;
+  }
+  .venue-hero {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .venue-hero-flag { font-size: 40px; line-height: 1; }
+  .venue-hero-info { flex: 1; }
+  .venue-hero-name { font-size: 20px; font-weight: 800; line-height: 1; }
+  .venue-hero-sub { margin-top: 5px; font-size: 13px; color: var(--text-muted); }
+  .back-btn {
+    background: var(--surface2);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .back-btn:hover { border-color: var(--primary); color: var(--text); }
 </style>
 </head>
 <body>
@@ -509,10 +642,23 @@
   </div>
 </div>
 
+<div class="view-tabs" id="viewTabs">
+  <div class="view-tabs-inner">
+    <button class="view-tab active" id="tabTeams" onclick="switchMode('teams')">By Team</button>
+    <button class="view-tab"        id="tabVenues" onclick="switchMode('venues')">By Venue / City</button>
+  </div>
+</div>
+
 <div class="all-teams" id="allTeamsView">
   <div class="splash-hint">Click any team or type above to view their full schedule</div>
   <div class="groups-grid" id="groupsGrid"></div>
 </div>
+
+<div class="all-venues" id="allVenuesView" style="display:none;">
+  <div id="countriesGrid"></div>
+</div>
+
+<div class="venue-view" id="venueView"></div>
 
 <div class="team-view" id="teamView">
   <div class="team-hero" id="teamHero"></div>
@@ -673,6 +819,21 @@ const GROUP_COLORS = {
   I:"#3d2e5c", J:"#5c2e3d", K:"#2e4a5c", L:"#4a5c2e",
 };
 
+const VENUE_COUNTRIES = {
+  "United States": {
+    flag: "🇺🇸",
+    cities: ["Atlanta","Boston","Dallas","Houston","Kansas City","Los Angeles","Miami","New York / New Jersey","Philadelphia","San Francisco Bay Area","Seattle"]
+  },
+  "Canada": {
+    flag: "🇨🇦",
+    cities: ["Toronto","Vancouver"]
+  },
+  "Mexico": {
+    flag: "🇲🇽",
+    cities: ["Guadalajara","Mexico City","Monterrey"]
+  },
+};
+
 // ── VENUE TIMEZONES (summer 2026) ─────────────────────────────────────────────
 // Mexico abolished DST in 2023 → CST year-round (UTC-6 = ET-2)
 // US Eastern cities: EDT (UTC-4 = ET±0)
@@ -713,6 +874,8 @@ function getDisplayTime(match) {
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let selectedTeam = null;
+let selectedVenue = null;
+let currentMode = 'teams';
 let showLocalTime = false;
 
 // ── TIMEZONE TOGGLE ───────────────────────────────────────────────────────────
@@ -720,13 +883,131 @@ function setTZ(mode) {
   showLocalTime = (mode === 'local');
   document.getElementById('btnET').classList.toggle('active', !showLocalTime);
   document.getElementById('btnLocal').classList.toggle('active', showLocalTime);
-  // Re-render if a team is selected
   if (selectedTeam) renderTeamView(selectedTeam);
+  if (selectedVenue) renderVenueView(selectedVenue);
+}
+
+// ── MODE SWITCH ───────────────────────────────────────────────────────────────
+function switchMode(mode) {
+  currentMode = mode;
+  document.getElementById('tabTeams').classList.toggle('active', mode === 'teams');
+  document.getElementById('tabVenues').classList.toggle('active', mode === 'venues');
+
+  if (mode === 'teams') {
+    document.getElementById('allVenuesView').style.display = 'none';
+    document.getElementById('venueView').style.display = 'none';
+    if (selectedTeam) {
+      document.getElementById('teamView').style.display = 'block';
+      document.getElementById('allTeamsView').style.display = 'none';
+    } else {
+      document.getElementById('allTeamsView').style.display = 'block';
+      document.getElementById('teamView').style.display = 'none';
+    }
+  } else {
+    document.getElementById('allTeamsView').style.display = 'none';
+    document.getElementById('teamView').style.display = 'none';
+    if (selectedVenue) {
+      document.getElementById('venueView').style.display = 'block';
+      document.getElementById('allVenuesView').style.display = 'none';
+    } else {
+      document.getElementById('allVenuesView').style.display = 'block';
+      document.getElementById('venueView').style.display = 'none';
+    }
+  }
+}
+
+// ── VENUE BROWSER ─────────────────────────────────────────────────────────────
+function renderVenueBrowser() {
+  const grid = document.getElementById('countriesGrid');
+  grid.innerHTML = Object.entries(VENUE_COUNTRIES).map(([country, data]) => {
+    const countryCount = MATCHES.filter(m => data.cities.includes(m.venue)).length;
+    const citiesHTML = data.cities.map(city => {
+      const count = MATCHES.filter(m => m.venue === city).length;
+      return `
+        <div class="venue-pill" onclick="selectVenue('${city}')">
+          <span>${city}</span>
+          <span class="vc-count">${count}</span>
+        </div>`;
+    }).join('');
+    return `
+      <div class="country-card">
+        <div class="country-header" onclick="selectCountry('${country}')">
+          <span>${data.flag}</span>
+          <span>${country}</span>
+          <span class="match-count">${countryCount} matches</span>
+        </div>
+        <div class="country-venues">${citiesHTML}</div>
+      </div>`;
+  }).join('');
+}
+
+function selectVenue(venue) {
+  selectedVenue = venue;
+  document.getElementById('allVenuesView').style.display = 'none';
+  document.getElementById('venueView').style.display = 'block';
+  renderVenueView(venue);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function selectCountry(country) {
+  selectedVenue = '__country__' + country;
+  document.getElementById('allVenuesView').style.display = 'none';
+  document.getElementById('venueView').style.display = 'block';
+  renderCountryView(country);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function clearVenueSelection() {
+  selectedVenue = null;
+  document.getElementById('venueView').style.display = 'none';
+  document.getElementById('allVenuesView').style.display = 'block';
+}
+
+function renderVenueView(venue) {
+  const venueMatches = MATCHES.filter(m => m.venue === venue).sort((a,b) => a.id - b.id);
+  let countryFlag = '📍';
+  for (const [, data] of Object.entries(VENUE_COUNTRIES)) {
+    if (data.cities.includes(venue)) { countryFlag = data.flag; break; }
+  }
+  const tz = VENUE_TZ[venue];
+  const tzLabel = tz ? tz.label : 'ET';
+
+  document.getElementById('venueView').innerHTML = `
+    <div class="venue-hero">
+      <div class="venue-hero-flag">${countryFlag}</div>
+      <div class="venue-hero-info">
+        <div class="venue-hero-name">${venue}</div>
+        <div class="venue-hero-sub">${venueMatches.length} matches &nbsp;·&nbsp; ${tzLabel} local time</div>
+      </div>
+      <button class="back-btn" onclick="clearVenueSelection()">← Back</button>
+    </div>
+    <div class="section-label">All Matches at This Venue</div>
+    ${venueMatches.map(m => renderMatchCard(m, null)).join('')}
+  `;
+}
+
+function renderCountryView(country) {
+  const data = VENUE_COUNTRIES[country];
+  const countryMatches = MATCHES.filter(m => data.cities.includes(m.venue)).sort((a,b) => a.id - b.id);
+
+  document.getElementById('venueView').innerHTML = `
+    <div class="venue-hero">
+      <div class="venue-hero-flag">${data.flag}</div>
+      <div class="venue-hero-info">
+        <div class="venue-hero-name">${country}</div>
+        <div class="venue-hero-sub">${countryMatches.length} matches across ${data.cities.length} venues</div>
+      </div>
+      <button class="back-btn" onclick="clearVenueSelection()">← Back</button>
+    </div>
+    <div class="section-label">All Matches in ${country}</div>
+    ${countryMatches.map(m => renderMatchCard(m, null)).join('')}
+  `;
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function init() {
   renderGroupsGrid();
+  renderVenueBrowser();
 
   const inp = document.getElementById('searchInput');
   inp.addEventListener('input', onSearchInput);
@@ -809,10 +1090,16 @@ function hideAutocomplete() {
 function selectTeam(code) {
   hideAutocomplete();
   selectedTeam = code;
+  selectedVenue = null;
+  currentMode = 'teams';
+  document.getElementById('tabTeams').classList.add('active');
+  document.getElementById('tabVenues').classList.remove('active');
   const team = TEAMS[code];
   document.getElementById('searchInput').value = team.name;
   document.getElementById('clearBtn').classList.add('visible');
   document.getElementById('allTeamsView').style.display = 'none';
+  document.getElementById('allVenuesView').style.display = 'none';
+  document.getElementById('venueView').style.display = 'none';
   document.getElementById('teamView').style.display = 'block';
   renderTeamView(code);
   window.scrollTo({ top: 0, behavior: 'smooth' });
