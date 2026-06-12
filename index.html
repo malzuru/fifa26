@@ -683,36 +683,50 @@
     flex-shrink: 0;
   }
   .back-btn:hover { border-color: var(--primary); color: var(--text); }
+
+  /* ── Sticky top bar ── */
+  .sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+  }
+  .sticky-top .search-wrap { margin-top: 12px; }
+  .sticky-top .view-tabs   { margin-top: 10px; }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <div class="header-badge">Official Schedule • Subject to Change</div>
-  <h1>FIFA World Cup <span>2026™</span></h1>
-  <p>June 11 – July 19, 2026</p>
-  <div class="tz-toggle-wrap">
-    <button class="tz-btn active" id="btnET"  onclick="setTZ('ET')">ET</button>
-    <button class="tz-btn"        id="btnLocal" onclick="setTZ('local')">Local time</button>
-  </div>
-</div>
-
-<div class="search-wrap">
-  <div class="search-box">
-    <div class="search-input-wrap">
-      <span class="search-icon">⚽</span>
-      <input type="text" id="searchInput" placeholder="Search by country name or code…" autocomplete="off" />
-      <div class="autocomplete-list" id="autocompleteList" style="display:none;"></div>
+<div class="sticky-top">
+  <div class="header">
+    <div class="header-badge">Official Schedule • Subject to Change</div>
+    <h1>FIFA World Cup <span>2026™</span></h1>
+    <p>June 11 – July 19, 2026</p>
+    <div class="tz-toggle-wrap">
+      <button class="tz-btn active" id="btnET"  onclick="setTZ('ET')">ET</button>
+      <button class="tz-btn"        id="btnLocal" onclick="setTZ('local')">Local time</button>
     </div>
-    <button class="clear-btn" id="clearBtn" onclick="clearSelection()">✕ Clear</button>
   </div>
-</div>
 
-<div class="view-tabs" id="viewTabs">
-  <div class="view-tabs-inner">
-    <button class="view-tab active" id="tabAll"    onclick="switchMode('all')">All Matches</button>
-    <button class="view-tab"        id="tabTeams"  onclick="switchMode('teams')">By Team</button>
-    <button class="view-tab"        id="tabVenues" onclick="switchMode('venues')">By Venue / City</button>
+  <div class="search-wrap">
+    <div class="search-box">
+      <div class="search-input-wrap">
+        <span class="search-icon">⚽</span>
+        <input type="text" id="searchInput" placeholder="Search by country name or code…" autocomplete="off" />
+        <div class="autocomplete-list" id="autocompleteList" style="display:none;"></div>
+      </div>
+      <button class="clear-btn" id="clearBtn" onclick="clearSelection()">✕ Clear</button>
+    </div>
+  </div>
+
+  <div class="view-tabs" id="viewTabs">
+    <div class="view-tabs-inner">
+      <button class="view-tab active" id="tabAll"    onclick="switchMode('all')">All Matches</button>
+      <button class="view-tab"        id="tabTeams"  onclick="switchMode('teams')">By Team</button>
+      <button class="view-tab"        id="tabVenues" onclick="switchMode('venues')">By Venue / City</button>
+    </div>
   </div>
 </div>
 
@@ -1237,10 +1251,14 @@ function init() {
   renderGroupsGrid();
   renderVenueBrowser();
 
-  // Scroll to today's matches after a brief paint delay
+  // Scroll to today's matches, offsetting for the sticky header height
   setTimeout(() => {
     const anchor = document.getElementById('today-anchor');
-    if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (anchor) {
+      const stickyHeight = document.querySelector('.sticky-top').offsetHeight;
+      const top = anchor.getBoundingClientRect().top + window.scrollY - stickyHeight - 8;
+      window.scrollTo({ top, behavior: 'smooth' });
+    }
   }, 80);
 
   const inp = document.getElementById('searchInput');
