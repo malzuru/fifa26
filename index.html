@@ -451,6 +451,25 @@
   }
   .vs-tz { font-size: 10px; color: var(--text-muted); font-weight: 600; }
 
+  /* Score display for completed matches */
+  .vs-score {
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.5px;
+  }
+  .vs-ft {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  .match-card.finished { border-color: rgba(255,255,255,0.08); }
+  .match-card.finished .match-team-name { color: var(--text-muted); }
+  .match-card.finished .match-team.winner .match-team-name { color: #fff; font-weight: 800; }
+
   .match-footer {
     padding: 7px 14px;
     border-top: 1px solid var(--border);
@@ -1009,6 +1028,50 @@ let selectedTeam = null;
 let selectedVenue = null;
 let currentMode = 'all';
 let showLocalTime = false;
+let SCORES = {}; // keyed by match id → { homeScore, awayScore, completed, detail }
+
+// ── SCORES FETCH ──────────────────────────────────────────────────────────────
+async function fetchScores() {
+  const start = new Date('2026-06-11');
+  const today = new Date();
+  const dates = [];
+  for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+    dates.push(d.toISOString().slice(0, 10).replace(/-/g, ''));
+  }
+
+  const results = await Promise.all(
+    dates.map(date =>
+      fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=${date}`)
+        .then(r => r.json())
+        .catch(() => null)
+    )
+  );
+
+  results.forEach(data => {
+    if (!data || !data.events) return;
+    data.events.forEach(event => {
+      const parts = event.shortName.split(' @ ');
+      if (parts.length !== 2) return;
+      const [awayCode, homeCode] = parts;
+      const match = MATCHES.find(m => m.home === homeCode && m.away === awayCode);
+      if (!match) return;
+      const comp = event.competitions[0];
+      if (!comp || !comp.competitors) return;
+      const home = comp.competitors.find(t => t.homeAway === 'home');
+      const away = comp.competitors.find(t => t.homeAway === 'away');
+      const completed = event.status.type.completed;
+      const inProgress = event.status.type.state === 'in';
+      if (!completed && !inProgress) return;
+      SCORES[match.id] = {
+        homeScore: home ? parseInt(home.score) || 0 : 0,
+        awayScore: away ? parseInt(away.score) || 0 : 0,
+        completed,
+        inProgress,
+        detail: event.status.type.shortDetail || 'FT',
+      };
+    });
+  });
+}
 
 // ── TIMEZONE TOGGLE ───────────────────────────────────────────────────────────
 function setTZ(mode) {
@@ -1215,7 +1278,15 @@ function renderFullSchedule() {
     dateMap.get(m.date).push(m);
   });
 
-  let html = [...dateMap.entries()].map(([date, matches]) => {
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function parseDateStr(s) {
+    const p = s.split(' ');
+    return new Date(2026, MONTHS.indexOf(p[1]), parseInt(p[2]));
+  }
+
+  let html = [...dateMap.entries()]
+    .sort(([a], [b]) => parseDateStr(a) - parseDateStr(b))
+    .map(([date, matches]) => {
     const isToday = date === todayStr;
     return `
     <div class="schedule-date-header${isToday ? ' today' : ''}"${isToday ? ' id="today-anchor"' : ''}>${date}${isToday ? '<span class="today-pill">Today</span>' : ''}</div>
@@ -1246,7 +1317,8 @@ function renderFullSchedule() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-function init() {
+async function init() {
+  await fetchScores();
   renderFullSchedule();
   renderGroupsGrid();
   renderVenueBrowser();
@@ -1432,8 +1504,51 @@ function renderMatchCard(m, highlightCode) {
   const away = TEAMS[m.away];
   const mdLabel = `Matchday ${m.matchday}`;
   const color = GROUP_COLORS[m.group];
+  const score = SCORES[m.id];
 
   const { time: displayTime, tz: displayTZ } = getDisplayTime(m);
+
+  let vsHtml;
+  if (score && (score.completed || score.inProgress)) {
+    const homeWin = score.homeScore > score.awayScore;
+    const awayWin = score.awayScore > score.homeScore;
+    const detailColor = score.inProgress ? '#f87171' : 'var(--text-muted)';
+    vsHtml = `
+      <div class="match-vs">
+        <span class="vs-score">${score.homeScore} – ${score.awayScore}</span>
+        <span class="vs-ft" style="color:${detailColor};">${score.detail}</span>
+      </div>`;
+    const homeClass = `match-team ${m.home===highlightCode?'highlight':''} ${score.completed && homeWin?'winner':''}`;
+    const awayClass = `match-team ${m.away===highlightCode?'highlight':''} ${score.completed && awayWin?'winner':''}`;
+    return `
+      <div class="match-card finished">
+        <div class="match-meta-bar" style="background:${color}18;">
+          <span class="match-num">Match #${m.id} · ${mdLabel}</span>
+          <span class="match-stage-badge badge-group">Group ${m.group}</span>
+        </div>
+        <div class="match-body">
+          <div class="${homeClass}">
+            <span class="match-team-flag">${home.flag}</span>
+            <span class="match-team-name">${home.name}</span>
+            <span class="match-team-code">${m.home}</span>
+          </div>
+          ${vsHtml}
+          <div class="${awayClass}">
+            <span class="match-team-flag">${away.flag}</span>
+            <span class="match-team-name">${away.name}</span>
+            <span class="match-team-code">${m.away}</span>
+          </div>
+        </div>
+        <div class="match-footer">
+          <span>📅 ${m.date} &nbsp;·&nbsp; 📍 ${m.venue}</span>
+          <div class="broadcast-wrap">
+            <span class="badge-${m.broadcast === 'FOX' ? 'fox' : 'fs1'}">${m.broadcast}</span>
+            ${m.tubi ? '<span class="badge-tubi">Tubi</span>' : ''}
+          </div>
+        </div>
+      </div>`;
+  }
+
   return `
     <div class="match-card">
       <div class="match-meta-bar" style="background:${color}18;">
