@@ -703,6 +703,75 @@
   }
   .back-btn:hover { border-color: var(--primary); color: var(--text); }
 
+  /* ── Standings ── */
+  .all-standings {
+    max-width: 680px;
+    margin: 16px auto 0;
+    padding: 0 16px 48px;
+  }
+  .standings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+  }
+  .standings-card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .standings-group-header {
+    padding: 7px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+  .standings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .standings-table thead th {
+    padding: 5px 8px;
+    color: var(--text-muted);
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+  .standings-table thead th.th-team { text-align: left; }
+  .standings-table tbody tr {
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.1s;
+  }
+  .standings-table tbody tr:last-child { border-bottom: none; }
+  .standings-table tbody tr:hover { background: var(--surface2); }
+  .standings-table td {
+    padding: 7px 8px;
+    text-align: center;
+    color: var(--text-muted);
+  }
+  .standings-table td.td-team {
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .standings-table td.td-pos { font-weight: 700; color: var(--text-muted); width: 24px; }
+  .standings-table td.td-pts { font-weight: 800; color: var(--text); }
+  .standings-table tbody tr.advances td { color: var(--text); }
+  .standings-table tbody tr.advances td.td-pts { color: var(--gold); }
+  .standings-table tbody tr.advances-bar td:first-child {
+    box-shadow: inset 3px 0 0 var(--primary);
+  }
+  .standings-table tbody tr.is-selected td.td-team { color: var(--gold); }
+  .td-flag { font-size: 15px; }
+
   /* ── Sticky top bar ── */
   .sticky-top {
     position: sticky;
@@ -743,8 +812,9 @@
   <div class="view-tabs" id="viewTabs">
     <div class="view-tabs-inner">
       <button class="view-tab active" id="tabAll"    onclick="switchMode('all')">All Matches</button>
-      <button class="view-tab"        id="tabTeams"  onclick="switchMode('teams')">By Team</button>
-      <button class="view-tab"        id="tabVenues" onclick="switchMode('venues')">By Venue / City</button>
+      <button class="view-tab"        id="tabTeams"     onclick="switchMode('teams')">By Team</button>
+      <button class="view-tab"        id="tabStandings" onclick="switchMode('standings')">Standings</button>
+      <button class="view-tab"        id="tabVenues"    onclick="switchMode('venues')">By Venue / City</button>
     </div>
   </div>
 </div>
@@ -763,6 +833,10 @@
 </div>
 
 <div class="venue-view" id="venueView"></div>
+
+<div class="all-standings" id="allStandingsView" style="display:none;">
+  <div class="standings-grid" id="standingsGrid"></div>
+</div>
 
 <div class="team-view" id="teamView">
   <div class="team-hero" id="teamHero"></div>
@@ -1083,14 +1157,91 @@ function setTZ(mode) {
   if (selectedVenue) renderVenueView(selectedVenue);
 }
 
+// ── STANDINGS COMPUTATION ─────────────────────────────────────────────────────
+function computeStandings(group) {
+  const teamCodes = Object.entries(TEAMS)
+    .filter(([, t]) => t.group === group)
+    .map(([code]) => code);
+
+  const stats = {};
+  teamCodes.forEach(code => {
+    stats[code] = { p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
+  });
+
+  MATCHES.filter(m => m.group === group).forEach(m => {
+    const score = SCORES[m.id];
+    if (!score || !score.completed) return;
+    const { homeScore: hg, awayScore: ag } = score;
+    stats[m.home].p++; stats[m.away].p++;
+    stats[m.home].gf += hg; stats[m.home].ga += ag;
+    stats[m.away].gf += ag; stats[m.away].ga += hg;
+    if (hg > ag)      { stats[m.home].w++; stats[m.home].pts += 3; stats[m.away].l++; }
+    else if (hg < ag) { stats[m.away].w++; stats[m.away].pts += 3; stats[m.home].l++; }
+    else              { stats[m.home].d++; stats[m.home].pts++; stats[m.away].d++; stats[m.away].pts++; }
+  });
+
+  return teamCodes
+    .map(code => ({ code, ...stats[code], gd: stats[code].gf - stats[code].ga }))
+    .sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf);
+}
+
+function renderStandingsTable(group, highlightCode = null) {
+  const rows = computeStandings(group);
+  const color = GROUP_COLORS[group];
+
+  const tbody = rows.map((r, i) => {
+    const team = TEAMS[r.code];
+    const advances = i < 2 ? 'advances advances-bar' : '';
+    const selected = r.code === highlightCode ? 'is-selected' : '';
+    const gd = r.gd > 0 ? `+${r.gd}` : r.gd;
+    return `
+      <tr class="${advances} ${selected}">
+        <td class="td-pos">${i + 1}</td>
+        <td class="td-team" onclick="selectTeam('${r.code}')">
+          <span class="td-flag">${team.flag}</span>${team.name}
+        </td>
+        <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td>
+        <td>${r.gf}</td><td>${r.ga}</td><td>${gd}</td>
+        <td class="td-pts">${r.pts}</td>
+      </tr>`;
+  }).join('');
+
+  return `
+    <div class="standings-card">
+      <div class="standings-group-header" style="background:${color}22; color:#cde; border-bottom:1px solid ${color}44;">
+        GROUP ${group}
+      </div>
+      <table class="standings-table">
+        <thead>
+          <tr>
+            <th class="td-pos">#</th>
+            <th class="th-team" colspan="1">Team</th>
+            <th>P</th><th>W</th><th>D</th><th>L</th>
+            <th>GF</th><th>GA</th><th>GD</th><th>Pts</th>
+          </tr>
+        </thead>
+        <tbody>${tbody}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderAllStandings(highlightCode = null) {
+  const grid = document.getElementById('standingsGrid');
+  grid.innerHTML = 'ABCDEFGHIJKL'.split('').map(g => {
+    const html = renderStandingsTable(g, highlightCode && TEAMS[highlightCode]?.group === g ? highlightCode : null);
+    return `<div id="standings-group-${g}">${html}</div>`;
+  }).join('');
+}
+
 // ── MODE SWITCH ───────────────────────────────────────────────────────────────
 function switchMode(mode) {
   currentMode = mode;
   document.getElementById('tabAll').classList.toggle('active', mode === 'all');
   document.getElementById('tabTeams').classList.toggle('active', mode === 'teams');
   document.getElementById('tabVenues').classList.toggle('active', mode === 'venues');
+  document.getElementById('tabStandings').classList.toggle('active', mode === 'standings');
 
-  const allViews = ['allScheduleView','allTeamsView','allVenuesView','teamView','venueView'];
+  const allViews = ['allScheduleView','allTeamsView','allVenuesView','teamView','venueView','allStandingsView'];
   allViews.forEach(id => document.getElementById(id).style.display = 'none');
 
   if (mode === 'all') {
@@ -1103,6 +1254,20 @@ function switchMode(mode) {
       document.getElementById('teamView').style.display = 'block';
     } else {
       document.getElementById('allTeamsView').style.display = 'block';
+    }
+  } else if (mode === 'standings') {
+    document.getElementById('allStandingsView').style.display = 'block';
+    renderAllStandings(selectedTeam);
+    if (selectedTeam) {
+      const group = TEAMS[selectedTeam].group;
+      setTimeout(() => {
+        const el = document.getElementById(`standings-group-${group}`);
+        if (el) {
+          const stickyHeight = document.querySelector('.sticky-top').offsetHeight;
+          const top = el.getBoundingClientRect().top + window.scrollY - stickyHeight - 8;
+          window.scrollTo({ top, behavior: 'smooth' });
+        }
+      }, 50);
     }
   } else {
     if (selectedVenue) {
@@ -1322,6 +1487,7 @@ async function init() {
   renderFullSchedule();
   renderGroupsGrid();
   renderVenueBrowser();
+  renderAllStandings(null);
 
   // Scroll to today's matches, offsetting for the sticky header height
   setTimeout(() => {
@@ -1462,19 +1628,8 @@ function renderTeamView(code) {
     </div>
   `;
 
-  // Group context
-  const groupTeams = Object.entries(TEAMS).filter(([,t]) => t.group === group);
-  document.getElementById('groupContext').innerHTML = `
-    <div class="group-context-title">Group ${group} · All Teams</div>
-    <div class="group-context-teams">
-      ${groupTeams.map(([c, t]) => `
-        <div class="gc-team ${c===code?'is-selected':''}" onclick="selectTeam('${c}')">
-          <span class="flag">${t.flag}</span>
-          <span>${t.name}</span>
-        </div>
-      `).join('')}
-    </div>
-  `;
+  // Group context — standings table
+  document.getElementById('groupContext').innerHTML = renderStandingsTable(group, code);
 
   // Group matches for this team
   const teamMatches = MATCHES.filter(m => m.home === code || m.away === code).sort((a,b)=>a.id-b.id);
