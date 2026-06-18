@@ -729,8 +729,13 @@
     letter-spacing: 1.5px;
     text-transform: uppercase;
   }
+  .standings-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   .standings-table {
     width: 100%;
+    min-width: 360px;
     border-collapse: collapse;
     font-size: 12px;
   }
@@ -1213,6 +1218,7 @@ function renderStandingsTable(group, highlightCode = null) {
       <div class="standings-group-header" style="background:${color}22; color:#cde; border-bottom:1px solid ${color}44;">
         GROUP ${group}
       </div>
+      <div class="standings-table-scroll">
       <table class="standings-table">
         <thead>
           <tr>
@@ -1224,6 +1230,7 @@ function renderStandingsTable(group, highlightCode = null) {
         </thead>
         <tbody>${tbody}</tbody>
       </table>
+      </div>
     </div>`;
 }
 
