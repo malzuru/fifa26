@@ -1010,8 +1010,8 @@ const MATCHES = [
 ];
 
 const KNOCKOUT_MATCHES = [
-  // ── Round of 32 — teams now confirmed ──────────────────────────────────────
-  { id: 73,  stage:"r32", home:"CAN", away:"RSA", date:"Sun Jun 28", time:"15:00", venue:"Los Angeles",            stadium:"SoFi Stadium"              },
+  // ── Round of 32 — confirmed results ─────────────────────────────────────────
+  { id: 73,  stage:"r32", home:"RSA", away:"CAN", date:"Sun Jun 28", time:"15:00", venue:"Los Angeles",            stadium:"SoFi Stadium"              },
   { id: 74,  stage:"r32", home:"BRA", away:"JPN", date:"Mon Jun 29", time:"13:00", venue:"Houston",                stadium:"NRG Stadium"                },
   { id: 75,  stage:"r32", home:"GER", away:"PAR", date:"Mon Jun 29", time:"16:30", venue:"Boston",                 stadium:"Gillette Stadium"           },
   { id: 76,  stage:"r32", home:"NED", away:"MAR", date:"Mon Jun 29", time:"21:00", venue:"Monterrey",              stadium:"Estadio BBVA"               },
@@ -1027,15 +1027,15 @@ const KNOCKOUT_MATCHES = [
   { id: 86,  stage:"r32", home:"AUS", away:"EGY", date:"Fri Jul 3",  time:"14:00", venue:"Dallas",                 stadium:"AT&T Stadium"               },
   { id: 87,  stage:"r32", home:"ARG", away:"CPV", date:"Fri Jul 3",  time:"18:00", venue:"Miami",                  stadium:"Hard Rock Stadium"          },
   { id: 88,  stage:"r32", home:"COL", away:"GHA", date:"Fri Jul 3",  time:"21:30", venue:"Kansas City",            stadium:"GEHA Field at Arrowhead"    },
-  // Round of 16
-  { id: 89,  stage:"r16",   date:"Sat Jul 4",   time:"13:00", venue:"Houston",                stadium:"NRG Stadium",                 homeLabel:"TBD",         awayLabel:"TBD"         },
-  { id: 90,  stage:"r16",   date:"Sat Jul 4",   time:"17:00", venue:"Philadelphia",           stadium:"Lincoln Financial Field",     homeLabel:"TBD",         awayLabel:"TBD"         },
-  { id: 91,  stage:"r16",   date:"Sun Jul 5",   time:"16:00", venue:"New York / New Jersey",  stadium:"MetLife Stadium",             homeLabel:"TBD",         awayLabel:"TBD"         },
-  { id: 92,  stage:"r16",   date:"Sun Jul 5",   time:"20:00", venue:"Mexico City",            stadium:"Estadio Azteca",              homeLabel:"TBD",         awayLabel:"TBD"         },
-  { id: 93,  stage:"r16",   date:"Mon Jul 6",   time:"15:00", venue:"Dallas",                 stadium:"AT&T Stadium",                homeLabel:"TBD",         awayLabel:"TBD"         },
-  { id: 94,  stage:"r16",   date:"Mon Jul 6",   time:"20:00", venue:"Seattle",                stadium:"Lumen Field",                 homeLabel:"TBD",         awayLabel:"TBD"         },
-  { id: 95,  stage:"r16",   date:"Tue Jul 7",   time:"12:00", venue:"Atlanta",                stadium:"Mercedes-Benz Stadium",       homeLabel:"TBD",         awayLabel:"TBD"         },
-  { id: 96,  stage:"r16",   date:"Tue Jul 7",   time:"16:00", venue:"Vancouver",              stadium:"BC Place",                    homeLabel:"TBD",         awayLabel:"TBD"         },
+  // ── Round of 16 — teams confirmed ───────────────────────────────────────────
+  { id: 89,  stage:"r16", home:"CAN", away:"MAR", date:"Sat Jul 4",  time:"13:00", venue:"Houston",                stadium:"NRG Stadium"                },
+  { id: 90,  stage:"r16", home:"FRA", away:"PAR", date:"Sat Jul 4",  time:"17:00", venue:"Philadelphia",           stadium:"Lincoln Financial Field"    },
+  { id: 91,  stage:"r16", home:"BRA", away:"NOR", date:"Sun Jul 5",  time:"16:00", venue:"New York / New Jersey",  stadium:"MetLife Stadium"            },
+  { id: 92,  stage:"r16", home:"MEX", away:"ENG", date:"Sun Jul 5",  time:"20:00", venue:"Mexico City",            stadium:"Estadio Azteca"             },
+  { id: 93,  stage:"r16", home:"ESP", away:"POR", date:"Mon Jul 6",  time:"15:00", venue:"Dallas",                 stadium:"AT&T Stadium"               },
+  { id: 94,  stage:"r16", home:"BEL", away:"USA", date:"Mon Jul 6",  time:"20:00", venue:"Seattle",                stadium:"Lumen Field"                },
+  { id: 95,  stage:"r16", home:"EGY", away:"ARG", date:"Tue Jul 7",  time:"12:00", venue:"Atlanta",                stadium:"Mercedes-Benz Stadium"      },
+  { id: 96,  stage:"r16", home:"SUI", away:"COL", date:"Tue Jul 7",  time:"16:00", venue:"Vancouver",              stadium:"BC Place"                   },
   // Quarter-finals
   { id: 97,  stage:"qf",    date:"Thu Jul 9",   time:"16:00", venue:"Boston",                 stadium:"Gillette Stadium",            homeLabel:"TBD",         awayLabel:"TBD"         },
   { id: 98,  stage:"qf",    date:"Fri Jul 10",  time:"15:00", venue:"Los Angeles",            stadium:"SoFi Stadium",                homeLabel:"TBD",         awayLabel:"TBD"         },
@@ -1093,7 +1093,8 @@ function resolveMatch(matchId, wantLoser) {
   const score = SCORES[matchId];
   if (!score || !score.completed) return null;
 
-  const homeWon = score.homeScore > score.awayScore;
+  // Use homeWins flag (set by ESPN's winner field, handles penalty shootouts)
+  const homeWon = score.homeWins;
   if (wantLoser) return homeWon ? awayCode : homeCode;
   return homeWon ? homeCode : awayCode;
 }
@@ -1231,9 +1232,14 @@ async function fetchScores() {
         const completed  = event.status?.type?.completed || false;
         const inProgress = event.status?.type?.state === 'in';
         if (!completed && !inProgress) return;
+        // ESPN marks the actual winner via competitor.winner=true, which handles penalties
+        const homeWinner = home?.winner === true;
+        const awayWinner = away?.winner === true;
         SCORES[match.id] = {
           homeScore: home ? parseInt(home.score) || 0 : 0,
           awayScore: away ? parseInt(away.score) || 0 : 0,
+          // If ESPN declares a winner (handles pens), use that; else infer from score
+          homeWins: homeWinner || (!awayWinner && (home ? parseInt(home.score) || 0 : 0) > (away ? parseInt(away.score) || 0 : 0)),
           completed, inProgress,
           detail: event.status?.type?.shortDetail || 'FT',
         };
@@ -1913,6 +1919,27 @@ function drawBracket() {
     });
   }
 
+  // Draw date/time label below a card (for R16 → Final)
+  function drawTimeLabel(matchId, x, y) {
+    const km = KNOCKOUT_MATCHES.find(m => m.id === matchId);
+    if (!km) return;
+    const { time: displayTime, tz } = getDisplayTime(km);
+    // e.g. "Sat Jul 4 · 1:00 PM ET"
+    const dateParts = km.date.split(' '); // ["Sat","Jul","4"]
+    const dayStr  = dateParts[0] + ' ' + dateParts[1] + ' ' + dateParts[2];
+    // Convert "13:00" → "1:00 PM"
+    const [hh, mm] = displayTime.split(':').map(Number);
+    const ampm  = hh >= 12 ? 'PM' : 'AM';
+    const h12   = hh % 12 || 12;
+    const timeStr = `${h12}:${String(mm).padStart(2,'0')} ${ampm} ${tz}`;
+    const label = `${dayStr}  ·  ${timeStr}`;
+    ctx.font = '8.5px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillStyle = COL_MUTED;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(label, x + CARD_W / 2, y + CARD_H + 3);
+  }
+
   // Draw connector line from right edge of a card to left edge of next round card
   function drawConnector(fromX, fromY, fromH, toX, toY, toH) {
     const x1 = fromX + CARD_W;
@@ -1983,6 +2010,7 @@ function drawBracket() {
     const x = cardX(1);
     const y = cardY(1, i);
     drawCard(matchId, x, y, selectedTeam);
+    drawTimeLabel(matchId, x, y);
     // Draw connectors from the two R32 feeder slots
     drawConnector(cardX(0), cardY(0, i * 2),     CARD_H, x, y, CARD_H);
     drawConnector(cardX(0), cardY(0, i * 2 + 1), CARD_H, x, y, CARD_H);
@@ -1993,6 +2021,7 @@ function drawBracket() {
     const x = cardX(2);
     const y = cardY(2, i);
     drawCard(matchId, x, y, selectedTeam);
+    drawTimeLabel(matchId, x, y);
     drawConnector(cardX(1), cardY(1, i * 2),     CARD_H, x, y, CARD_H);
     drawConnector(cardX(1), cardY(1, i * 2 + 1), CARD_H, x, y, CARD_H);
   });
@@ -2002,6 +2031,7 @@ function drawBracket() {
     const x = cardX(3);
     const y = cardY(3, i);
     drawCard(matchId, x, y, selectedTeam);
+    drawTimeLabel(matchId, x, y);
     drawConnector(cardX(2), cardY(2, i * 2),     CARD_H, x, y, CARD_H);
     drawConnector(cardX(2), cardY(2, i * 2 + 1), CARD_H, x, y, CARD_H);
   });
@@ -2010,6 +2040,7 @@ function drawBracket() {
   const finalX = cardX(4);
   const finalY = cardY(4, 0);
   drawCard(104, finalX, finalY, selectedTeam);
+  drawTimeLabel(104, finalX, finalY);
   SF_ORDER.forEach((_, i) => {
     drawConnector(cardX(3), cardY(3, i), CARD_H, finalX, finalY, CARD_H);
   });
@@ -2030,6 +2061,7 @@ function drawBracket() {
   ctx.textBaseline = 'top';
   ctx.fillText('3rd Place', thirdX, thirdY - 13);
   drawCard(103, thirdX, thirdY, selectedTeam);
+  drawTimeLabel(103, thirdX, thirdY);
 }
 
 async function init() {
@@ -2161,8 +2193,8 @@ function renderMatchCard(m, highlightCode) {
   const todayAttr = m.date === getTodayStr() ? ' data-today="true"' : '';
 
   if (score && (score.completed || score.inProgress)) {
-    const homeWin   = score.homeScore > score.awayScore;
-    const awayWin   = score.awayScore > score.homeScore;
+    const homeWin   = score.homeWins;
+    const awayWin   = !score.homeWins && score.homeScore !== score.awayScore;
     const detColor  = score.inProgress ? '#f87171' : 'var(--text-muted)';
     const homeWCls  = `match-team ${m.home===highlightCode?'highlight':''} ${score.completed && homeWin?'winner':''}`;
     const awayWCls  = `match-team ${m.away===highlightCode?'highlight':''} ${score.completed && awayWin?'winner':''}`;
