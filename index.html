@@ -2075,8 +2075,75 @@ function drawBracket() {
   drawTimeLabel(103, thirdX, thirdY);
 }
 
+
+async function fetchKnockoutScores() {
+  const BASE = 'https://sports.core.api.espn.com/v2/sports/soccer/leagues/fifa.world';
+  // R16: event IDs confirmed from ESPN core API
+  const R16_MAP = {89:760502,90:760503,91:760504,92:760505,93:760506,94:760507,95:760508,96:760509};
+
+  async function processEvent(espnId, matchId) {
+    const m = KNOCKOUT_MATCHES.find(x => x.id === matchId);
+    if (!m) return;
+    try {
+      const [event, status] = await Promise.all([
+        fetch(`${BASE}/events/${espnId}`).then(r => r.json()),
+        fetch(`${BASE}/events/${espnId}/competitions/${espnId}/status`).then(r => r.json())
+      ]);
+      const comp = event.competitions?.[0];
+      if (!comp) return;
+      const espnHome = comp.competitors.find(c => c.homeAway === 'home');
+      const espnAway = comp.competitors.find(c => c.homeAway === 'away');
+      if (!espnHome || !espnAway) return;
+      const completed  = status.type?.completed || false;
+      const inProgress = status.type?.state === 'in';
+      if (!completed && !inProgress) return;
+      // Parse real team codes from shortName e.g. "FRA @ PAR"
+      const parts = (event.shortName || '').split(' @ ');
+      const espnAwayCode = (ESPN_TO_CODE[(parts[0]||'').toUpperCase()] || (parts[0]||'')).toUpperCase();
+      const espnHomeCode = (ESPN_TO_CODE[(parts[1]||'').toUpperCase()] || (parts[1]||'')).toUpperCase();
+      // Set teams on QF+ matches that don't have them yet
+      if (!m.home && TEAMS[espnHomeCode]) m.home = espnHomeCode;
+      if (!m.away && TEAMS[espnAwayCode]) m.away = espnAwayCode;
+      // Fetch both scores in parallel
+      const [hScore, aScore] = await Promise.all([
+        fetch(`${BASE}/events/${espnId}/competitions/${espnId}/competitors/${espnHome.id}/score`).then(r => r.json()).catch(() => ({value:0})),
+        fetch(`${BASE}/events/${espnId}/competitions/${espnId}/competitors/${espnAway.id}/score`).then(r => r.json()).catch(() => ({value:0}))
+      ]);
+      // Align to our home/away (our "home" may differ from ESPN's "home" for neutral venues)
+      const ourHomeIsEspnHome = (!m.home || m.home === espnHomeCode);
+      let homeScore, awayScore, homeWins;
+      if (ourHomeIsEspnHome) {
+        homeScore = hScore.value || 0; awayScore = aScore.value || 0; homeWins = espnHome.winner === true;
+      } else {
+        homeScore = aScore.value || 0; awayScore = hScore.value || 0; homeWins = espnAway.winner === true;
+      }
+      SCORES[matchId] = { homeScore, awayScore, homeWins, completed, inProgress, detail: status.type?.shortDetail || 'FT' };
+    } catch(e) { /* silently skip on network error */ }
+  }
+
+  // Fetch all R16 matches in parallel
+  await Promise.all(Object.entries(R16_MAP).map(([mid, eid]) => processEvent(eid, parseInt(mid))));
+
+  // QF, SF, 3rd, Final: discover event IDs dynamically from ESPN stage listings
+  const LATER_STAGES = [
+    {typeId:4, matches:[97,98,99,100]},
+    {typeId:5, matches:[101,102]},
+    {typeId:6, matches:[103]},
+    {typeId:7, matches:[104]}
+  ];
+  for (const {typeId, matches} of LATER_STAGES) {
+    try {
+      const d = await fetch(`${BASE}/seasons/2026/types/${typeId}/events?limit=20`).then(r => r.json()).catch(() => null);
+      if (!d?.items) continue;
+      const ids = d.items.map(x => { const mt = (x.$ref||'').match(/events\/(\d+)/); return mt ? mt[1] : null; }).filter(Boolean);
+      await Promise.all(ids.map((eid, i) => matches[i] ? processEvent(eid, matches[i]) : Promise.resolve()));
+    } catch(e) {}
+  }
+}
+
 async function init() {
   await fetchScores();
+  await fetchKnockoutScores();
   renderFullSchedule();
   renderVenueBrowser();
   renderAllStandings(null);
