@@ -1223,7 +1223,18 @@ async function fetchScores() {
         const [awayAbbr, homeAbbr] = parts;
         const homeCode = ESPN_TO_CODE[homeAbbr.toUpperCase()] || homeAbbr.toUpperCase();
         const awayCode = ESPN_TO_CODE[awayAbbr.toUpperCase()] || awayAbbr.toUpperCase();
-        const match    = codedMatches.find(m => m.home === homeCode && m.away === awayCode);
+        let match = codedMatches.find(m => m.home === homeCode && m.away === awayCode);
+        if (!match && (homeAbbr === 'RD32' || awayAbbr === 'RD32')) {
+          const evDate = new Date(event.date);
+          const venFull = comp.venue?.fullName || '';
+          match = codedMatches.find(m => {
+            if (!m.stadium) return false;
+            const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const p = (m.date||'').split(' ');
+            const mDate = new Date(2026, mo.indexOf(p[1]), parseInt(p[2]));
+            return m.stadium === venFull && Math.abs(mDate - evDate) < 86400000 * 2;
+          });
+        }
         if (!match) return;
         const comp = event.competitions?.[0];
         if (!comp || !comp.competitors) return;
